@@ -31,15 +31,12 @@ class GameEngine:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                 self.reset()
             return
-        #BUG SYMPTOM:
-        # Rapidly alternating between 'A' and 'D' causes the rope to suddenly
-        # stop responding. The Computer easily pulls the rope to its side and wins while the player tries hard to pull the rope to its side.
 
         if event.type == pygame.KEYDOWN:
             if event.key in (pygame.K_a, pygame.K_d) and event.key != self.last_key:
                 self.rope.pull_left(1.0)
                 self.last_key = event.key
-        
+
     def update(self):
         if self.game_state != "PLAYING":
             return
@@ -77,8 +74,12 @@ class GameEngine:
         pygame.draw.rect(screen, (45, 38, 30), mud_rect, border_radius=12)
 
         self.rope.render(screen)
-        self.player.render(screen)
-        self.computer.render(screen)
+
+        center_x = self.width // 2
+        momentum = (center_x - self.rope.marker_x) / (center_x - self.rope.left_win_x)
+        lean = -max(-1.0, min(1.0, momentum))
+        self.player.render(screen, lean)
+        self.computer.render(screen, lean)
 
         inst_surf = self.font_small.render(
             "Alternate [A] and [D] keys rapidly to pull!", True, (210, 210, 210)

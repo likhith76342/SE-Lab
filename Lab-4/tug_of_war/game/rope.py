@@ -1,3 +1,4 @@
+import math
 import pygame
 
 
@@ -25,18 +26,23 @@ class Rope:
             return "COMPUTER"
         return None
 
+    def tension(self):
+        center_x = self.screen_width // 2
+        half_span = center_x - self.left_win_x
+        return min(1.0, abs(self.marker_x - center_x) / half_span)
+
     def reset(self):
         self.marker_x = float(self.screen_width // 2)
         self.velocity = 0.0
 
     def render(self, surface):
-        pygame.draw.line(
-            surface,
-            (180, 140, 90),
-            (60, self.center_y),
-            (self.screen_width - 60, self.center_y),
-            10
-        )
+        t = pygame.time.get_ticks() / 1000.0
+        amplitude = 8 * self.tension()
+        points = [
+            (x, self.center_y + amplitude * math.sin(x * 0.05 + t * 25))
+            for x in range(60, self.screen_width - 60 + 1, 10)
+        ]
+        pygame.draw.lines(surface, (180, 140, 90), False, points, 10)
 
         pygame.draw.line(
             surface,
