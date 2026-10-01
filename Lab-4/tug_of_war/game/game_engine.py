@@ -19,6 +19,10 @@ class GameEngine:
         self.computer_pull_cooldown = 180
         self.last_computer_pull = pygame.time.get_ticks()
 
+        self.surge_threshold = 0.35   # fraction of the way from center to the player's goal
+        self.surge_cooldown = 130     # ms between computer pulls while surging
+        self.computer_surging = False
+
         self.font_big = pygame.font.SysFont(None, 48)
         self.font_small = pygame.font.SysFont(None, 26)
 
@@ -41,7 +45,14 @@ class GameEngine:
             return
 
         now = pygame.time.get_ticks()
-        if now - self.last_computer_pull >= self.computer_pull_cooldown:
+
+        center_x = self.rope.screen_width // 2
+        progress = (center_x - self.rope.marker_x) / (center_x - self.rope.left_win_x)
+        surging = progress >= self.surge_threshold
+        self.computer_surging = surging
+
+        cooldown = self.surge_cooldown if surging else self.computer_pull_cooldown
+        if now - self.last_computer_pull >= cooldown:
             computer_variance = random.uniform(0.7, 1.2)
             self.rope.pull_right(computer_variance)
             self.last_computer_pull = now
@@ -56,6 +67,7 @@ class GameEngine:
         self.last_key = None
         self.winner = None
         self.game_state = "PLAYING"
+        self.computer_surging = False
         self.last_computer_pull = pygame.time.get_ticks()
 
     def render(self, screen):
