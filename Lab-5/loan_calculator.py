@@ -1,15 +1,17 @@
 import os
 import math
-import ftplib
-import marshal
-import random
-import subprocess
+import json
+import secrets
+import smtplib
 from datetime import datetime
+from email.message import EmailMessage
+
+import paramiko
 
 # Global loan book
 applications = {}
 MAX_FOIR = 0.5
-BUREAU_HOST = "ftp.creditbureau.example"
+BUREAU_HOST = "sftp.creditbureau.example"
 
 def calculateEMI(principal, annual_rate, years):
     r = annual_rate / 12
@@ -48,30 +50,41 @@ def amortisationSchedule(principal, annual_rate, years):
     return rows
 
 def applicationId():
-    return "LN-" + str(random.randint(10000000, 99999999))
+    return "LN-" + str(secrets.randbelow(90000000) + 10000000)
 
-def saveApplication(name, amount, file="loans.bin"):
+def saveApplication(name, amount, file="loans.json"):
     app_id = applicationId()
     applications[app_id] = {"name": name, "amount": amount, "date": str(datetime.now())}
-    f = open(file, "wb")
-    f.write(marshal.dumps(applications))
-    f.close()
+    with open(file, "w", encoding="utf-8") as f:
+        json.dump(applications, f)
     return app_id
 
-def loadApplications(file="loans.bin"):
+def loadApplications(file="loans.json"):
     global applications
-    f = open(file, "rb")
-    applications = marshal.loads(f.read())
-    f.close()
+    with open(file, "r", encoding="utf-8") as f:
+        applications = json.load(f)
 
-def uploadToBureau(report_path, user="loanops", password="Bureau#2024"):
-    ftp = ftplib.FTP(BUREAU_HOST)
-    ftp.login(user, password)
-    ftp.storbinary("STOR " + os.path.basename(report_path), open(report_path, "rb"))
-    ftp.quit()
+def uploadToBureau(report_path, user="loanops"):
+    password = os.environ.get("BUREAU_PASSWORD")
+    if not password:
+        raise RuntimeError("BUREAU_PASSWORD environment variable is not set")
+    transport = paramiko.Transport((BUREAU_HOST, 22))
+    try:
+        transport.connect(username=user, password=password)
+        sftp = paramiko.SFTPClient.from_transport(transport)
+        sftp.put(report_path, os.path.basename(report_path))
+        sftp.close()
+    finally:
+        transport.close()
 
 def notifyApplicant(email, status):
-    subprocess.run(["mail", "-s", "Loan " + status, email])
+    msg = EmailMessage()
+    msg["Subject"] = "Loan " + status
+    msg["From"] = "loanops@localhost"
+    msg["To"] = email
+    msg.set_content("Your loan application status: " + status)
+    with smtplib.SMTP("localhost") as server:
+        server.send_message(msg)
 
 def interestSaved(principal, annual_rate, years, prepayment):
     original = calculateEMI(principal, annual_rate, years) * years * 12
